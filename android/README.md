@@ -27,5 +27,7 @@ WebView-обертка над `../arsenal_psytech.html`. Весь UI живёт 
 
 ## AI-чат
 
-В `assets/index.html` строка `const apiKey = ""` — вписать Gemini API key
-перед пересборкой, либо заменить на другой OpenAI-совместимый бэкенд.
+Бэкенд: OpenAI-формат API (alem.ai, модель `qwen3-8`, CORS `*` — WebView-ден
+тік fetch жұмыс істейді). `build.sh` `API_KEY`-ті `~/Рабочий стол/api-lab/.env`
+(немесе env `AI_API_KEY`) өзі оқып, `assets/index.html`-ге `__AI_API_KEY__`
+плейсхолдердің орнына толады. Кілтсіз жиналса — чат қате хабарлама көрсетеді.

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Arsenal PsyTech — APK құрастыру (Gradless: aapt2 + javac + d8 + apksigner)
 # Қажет: JDK 17 (javac, keytool, jar) және Android SDK (platforms + build-tools)
+# AI кілті: $AI_API_KEY немесе ~/Рабочий стол/api-lab/.env (API_KEY=)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,6 +24,26 @@ export PATH="$JDK/bin:$PATH"
 
 echo "== JDK: $JDK"
 echo "== SDK: $SDK (build-tools: $(basename "$BT"), platform: $(basename "$PLATFORM"))"
+
+# --- 0. Ассет дайындау: source → assets (tailwind offline + API кілтін толу) ---
+KEY="${AI_API_KEY:-}"
+if [ -z "$KEY" ] && [ -f "$HOME/Рабочий стол/api-lab/.env" ]; then
+    KEY="$(grep -E '^API_KEY=' "$HOME/Рабочий стол/api-lab/.env" | head -1 | cut -d= -f2-)"
+fi
+if [ -z "$KEY" ]; then
+    echo "⚠️  API кілті жоқ (AI_API_KEY / .env) — чат жұмыс істемейді!"
+fi
+AI_KEY="$KEY" ROOT="$ROOT" python3 - <<'PYEOF'
+import os
+key = os.environ.get("AI_KEY", "")
+root = os.environ["ROOT"]
+src = open(os.path.join(root, '..', 'arsenal_psytech.html'), encoding='utf-8').read()
+src = src.replace('<script src="https://cdn.tailwindcss.com"></script>',
+                  '<link rel="stylesheet" href="tailwind.css">')
+src = src.replace('__AI_API_KEY__', key)
+open(os.path.join(root, 'assets', 'index.html'), 'w', encoding='utf-8').write(src)
+print('[0/6] assets/index.html дайын (кілт:', 'бар' if key else 'жоқ', ')')
+PYEOF
 
 rm -rf "$OUT"
 mkdir -p "$OUT/gen" "$OUT/classes" "$OUT/dex"

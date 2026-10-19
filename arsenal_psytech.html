@@ -123,9 +123,9 @@
                     <div class="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center text-white mb-6 backdrop-blur-md border border-white/20 group-hover:scale-110 transition-transform">
                         <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                     </div>
-                    <h3 class="text-2xl font-bold mb-3">AI Тәлімгер (Gemini)</h3>
+                    <h3 class="text-2xl font-bold mb-3">AI Тәлімгер (Qwen)</h3>
                     <p class="text-indigo-100 mb-8 flex-1 text-lg leading-relaxed">
-                        Gemini AI негізінде жұмыс істейтін академиялық көмекші. Психологиялық терминдер мен тесттегі қателеріңізді осында сұраңыз.
+                        Qwen AI негізінде жұмыс істейтін академиялық көмекші. Психологиялық терминдер мен тесттегі қателеріңізді осында сұраңыз.
                     </p>
                     <button class="w-full py-4 bg-white text-indigo-700 rounded-xl font-bold text-lg hover:bg-slate-50 transition-colors shadow-sm">Чатты ашу</button>
                 </div>
@@ -139,7 +139,7 @@
                 <div>
                    
                     <p class="text-slate-600 text-lg mb-4 leading-relaxed">
-                        Бұл платформа <strong>MVP (Minimum Viable Product)</strong> ретінде портфолио үшін арнайы әзірленді. Жобада қазіргі заманғы веб-технологиялар, Single Page Application (SPA) құрылымы, Responsive дизайн және Жасанды Интеллект (Gemini API) интеграциясы толығымен қамтылған.
+                        Бұл платформа <strong>MVP (Minimum Viable Product)</strong> ретінде портфолио үшін арнайы әзірленді. Жобада қазіргі заманғы веб-технологиялар, Single Page Application (SPA) құрылымы, Responsive дизайн және Жасанды Интеллект (Qwen API) интеграциясы толығымен қамтылған.
                     </p>
                     <div class="flex flex-wrap items-center gap-4 text-base">
                         <span class="inline-flex items-center gap-2 bg-slate-50 border border-slate-200 px-4 py-2 rounded-lg font-semibold text-slate-800">
@@ -237,7 +237,7 @@
                         </div>
                         <div>
                             <h3 class="font-extrabold text-xl text-slate-900">AI Тәлімгер</h3>
-                            <p class="text-sm text-slate-500 font-medium mt-0.5">Gemini 3.1 Pro моделі негізінде</p>
+                            <p class="text-sm text-slate-500 font-medium mt-0.5">Qwen3-8B моделі негізінде</p>
                         </div>
                     </div>
                 </div>
@@ -479,7 +479,7 @@
 
     function restartQuiz() { startQuiz(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
-    // --- 3. AI CHAT LOGIC (Gemini API Integration) ---
+    // --- 3. AI CHAT LOGIC (Qwen / OpenAI-формат API) ---
     let chatHistory = [];
     const systemPrompt = "Сен 'Arsenal PsyTech' платформасының академиялық AI-тәлімгерісің. Бұл платформаны әзірлеген: Демежан (GitHub: @Zukoo16). Сенің міндетің - студенттердің психология пәні бойынша сұрақтарына қазақ тілінде, кәсіби, академиялық, бірақ өте түсінікті тілмен жауап беру. Егер тесттегі қате туралы немесе психологиялық терминдер жайлы сұраса, жан-жақты түсіндіріп бер. Жауаптарың құрылымды, әдемі форматталған болсын.";
 
@@ -551,30 +551,50 @@
         
         const loaderId = addTypingIndicator();
 
-        const apiKey = ""; // API Key handled by Canvas environment
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-        
+        // AI бэкенд: OpenAI-формат API (alem.ai, qwen3-8).
+        // __AI_API_KEY__ — build.ki автomatik токенделеди (android/build.sh, .env-тен).
+        const apiKey = "__AI_API_KEY__";
+        const apiUrl = "https://llm.alem.ai/v1/chat/completions";
+        const aiModel = "qwen3-8";
+
         const payload = {
-            contents: chatHistory,
-            systemInstruction: { parts: [{ text: systemPrompt }] }
+            model: aiModel,
+            messages: [
+                { role: "system", content: systemPrompt },
+                ...chatHistory.map(m => ({ role: m.role, content: m.parts[0].text }))
+            ],
+            temperature: 0.7,
+            max_tokens: 12000,
+            chat_template_kwargs: { enable_thinking: false }
         };
 
         try {
             const response = await fetch(apiUrl, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + apiKey
+                },
                 body: JSON.stringify(payload)
             });
-            
-            const result = await response.json();
+
+            const result = await response.json().catch(() => ({}));
             document.getElementById(loaderId).remove();
 
-            if (result.candidates && result.candidates[0].content) {
-                const aiResponseText = result.candidates[0].content.parts[0].text;
+            if (!response.ok) {
+                const apiErr = (result.error && result.error.message) ? result.error.message : ('HTTP ' + response.status);
+                addMessageToUI("Кешіріңіз, серверден қате келді (" + apiErr + "). Қайта байқап көріңіз.", 'model');
+                return;
+            }
+
+            const choice = result.choices && result.choices[0];
+            const aiResponseText = choice && choice.message && (choice.message.content || '').trim();
+
+            if (aiResponseText) {
                 addMessageToUI(aiResponseText, 'model');
                 chatHistory.push({ role: "model", parts: [{ text: aiResponseText }] });
             } else {
-                addMessageToUI("Кешіріңіз, серверден қате келді. Қайта байқап көріңіз.", 'model');
+                addMessageToUI("Кешіріңіз, серверден бос жауап келді. Қайта байқап көріңіз.", 'model');
             }
         } catch (error) {
             if(document.getElementById(loaderId)) document.getElementById(loaderId).remove();
